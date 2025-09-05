@@ -97,7 +97,7 @@ Try it on [Colab](https://colab.research.google.com/github/microsoft/VibeVoice/b
 |-------|----------------|----------|----------|
 | VibeVoice-0.5B-Streaming | - | - | On the way |
 | VibeVoice-1.5B | 64K | ~90 min | [HF link](https://huggingface.co/microsoft/VibeVoice-1.5B) |
-| VibeVoice-Large| 32K | ~45 min | [HF link](https://huggingface.co/microsoft/VibeVoice-Large) |
+| VibeVoice-Large| 32K | ~45 min | [modelscope link](https://modelscope.cn/models/microsoft/VibeVoice-Large/files) |
 
 ## Installation
 We recommend to use NVIDIA Deep Learning Container to manage the CUDA environment. 
