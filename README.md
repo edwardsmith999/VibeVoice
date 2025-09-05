@@ -79,6 +79,13 @@ python demo/inference_from_file.py --model_path microsoft/VibeVoice-1.5B --txt_p
 python demo/inference_from_file.py --model_path microsoft/VibeVoice-1.5B --txt_path demo/text_examples/2p_zh.txt --speaker_names Alice Yunfan
 ```
 
+### Usage 3: Run with 4bit quant on low VRAM GPU
+```bash
+python demo/gradio_demo.py --model_path microsoft/VibeVoice-Large --share --quant 4bit
+python demo/inference_from_file.py --model_path microsoft/VibeVoice-Large --txt_path demo/text_examples/2p_zh.txt --speaker_names Alice Yunfan --quant 4bit
+```
+
+
 ## Risks and limitations
 
 Potential for Deepfakes and Disinformation: High-quality synthetic speech can be misused to create convincing fake audio content for impersonation, fraud, or spreading disinformation. Users must ensure transcripts are reliable, check content accuracy, and avoid using generated content in misleading ways. Users are expected to use the generated content and to deploy the models in a lawful manner, in full compliance with all applicable laws and regulations in the relevant jurisdictions. It is best practice to disclose the use of AI when sharing AI-generated content.
