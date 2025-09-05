@@ -121,6 +121,13 @@ cd VibeVoice/
 pip install -e .
 ```
 
+### Usage 3: Run with 4bit quant on low VRAM GPU
+```bash
+python demo/gradio_demo.py --model_path microsoft/VibeVoice-Large --share --quant 4bit
+python demo/inference_from_file.py --model_path microsoft/VibeVoice-Large --txt_path demo/text_examples/2p_zh.txt --speaker_names Alice Yunfan --quant 4bit
+```
+
+
 ## Usages
 
 ### 🚨 Tips
