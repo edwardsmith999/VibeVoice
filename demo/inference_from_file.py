@@ -9,6 +9,7 @@ import torch
 from vibevoice.modular.modeling_vibevoice_inference import VibeVoiceForConditionalGenerationInference
 from vibevoice.processor.vibevoice_processor import VibeVoiceProcessor
 from transformers.utils import logging
+from transformers import BitsAndBytesConfig
 
 logging.set_verbosity_info()
 logger = logging.get_logger(__name__)
@@ -176,6 +177,13 @@ def parse_args():
         default=1.3,
         help="CFG (Classifier-Free Guidance) scale for generation (default: 1.3)",
     )
+
+    parser.add_argument(
+        "--quant",
+        type=str,
+        default="None",
+        help="Specify None for full precision or 4bit/8bit",
+    )
     
     return parser.parse_args()
 
@@ -252,11 +260,7 @@ def main():
     # Prepare data for model
     full_script = '\n'.join(scripts)
     full_script = full_script.replace("’", "'")        
-    
-    print(f"Loading processor & model from {args.model_path}")
-    processor = VibeVoiceProcessor.from_pretrained(args.model_path)
-
-
+   
     # Decide dtype & attention implementation
     if args.device == "mps":
         load_dtype = torch.float32  # MPS requires float32
@@ -268,12 +272,35 @@ def main():
         load_dtype = torch.float32
         attn_impl_primary = "sdpa"
     print(f"Using device: {args.device}, torch_dtype: {load_dtype}, attn_implementation: {attn_impl_primary}")
+
+
+    if args.quant == "4bit":
+        quant_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_compute_dtype=load_dtype,
+        )
+    elif args.quant == "8bit":
+        quant_config = BitsAndBytesConfig(
+            load_in_8bit=True,           
+            llm_int8_threshold=6.0,      
+            llm_int8_has_fp16_weight=False, 
+        )
+        raise IOError("8bit does not seem to work")
+    else:
+        quant_config = None
+
+    print(f"Loading processor & model from {args.model_path} with {quant_config} quant")
+    processor = VibeVoiceProcessor.from_pretrained(args.model_path, quantization_config=quant_config)
+
     # Load model with device-specific logic
     try:
         if args.device == "mps":
             model = VibeVoiceForConditionalGenerationInference.from_pretrained(
                 args.model_path,
                 torch_dtype=load_dtype,
+                quantization_config=quant_config,
                 attn_implementation=attn_impl_primary,
                 device_map=None,  # load then move
             )
@@ -283,12 +310,14 @@ def main():
                 args.model_path,
                 torch_dtype=load_dtype,
                 device_map="cuda",
+                quantization_config=quant_config,
                 attn_implementation=attn_impl_primary,
             )
         else:  # cpu
             model = VibeVoiceForConditionalGenerationInference.from_pretrained(
                 args.model_path,
                 torch_dtype=load_dtype,
+                quantization_config=quant_config,
                 device_map="cpu",
                 attn_implementation=attn_impl_primary,
             )
@@ -300,6 +329,7 @@ def main():
             model = VibeVoiceForConditionalGenerationInference.from_pretrained(
                 args.model_path,
                 torch_dtype=load_dtype,
+                quantization_config=quant_config,
                 device_map=(args.device if args.device in ("cuda", "cpu") else None),
                 attn_implementation='sdpa'
             )
@@ -311,7 +341,7 @@ def main():
 
     model.eval()
     model.set_ddpm_inference_steps(num_steps=10)
-
+    
     if hasattr(model.model, 'language_model'):
        print(f"Language model attention: {model.model.language_model.config._attn_implementation}")
        

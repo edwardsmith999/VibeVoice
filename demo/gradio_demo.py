@@ -26,24 +26,27 @@ from vibevoice.processor.vibevoice_processor import VibeVoiceProcessor
 from vibevoice.modular.streamer import AudioStreamer
 from transformers.utils import logging
 from transformers import set_seed
+from transformers import BitsAndBytesConfig
 
 logging.set_verbosity_info()
 logger = logging.get_logger(__name__)
 
 
 class VibeVoiceDemo:
-    def __init__(self, model_path: str, device: str = "cuda", inference_steps: int = 5):
+    def __init__(self, model_path: str, device: str = "cuda", inference_steps: int = 5, quant=None):
         """Initialize the VibeVoice demo with model loading."""
         self.model_path = model_path
         self.device = device
         self.inference_steps = inference_steps
+        self.quant = quant
         self.is_generating = False  # Track generation state
         self.stop_generation = False  # Flag to stop generation
         self.current_streamer = None  # Track current audio streamer
         self.load_model()
         self.setup_voice_presets()
         self.load_example_scripts()  # Load example scripts
-        
+
+
     def load_model(self):
         """Load the VibeVoice model and processor."""
         print(f"Loading processor & model from {self.model_path}")
@@ -55,8 +58,7 @@ class VibeVoiceDemo:
             print("Warning: MPS not available. Falling back to CPU.")
             self.device = "cpu"
         print(f"Using device: {self.device}")
-        # Load processor
-        self.processor = VibeVoiceProcessor.from_pretrained(self.model_path)
+
         # Decide dtype & attention
         if self.device == "mps":
             load_dtype = torch.float32
@@ -68,12 +70,34 @@ class VibeVoiceDemo:
             load_dtype = torch.float32
             attn_impl_primary = "sdpa"
         print(f"Using device: {self.device}, torch_dtype: {load_dtype}, attn_implementation: {attn_impl_primary}")
+
+        if self.quant == "4bit":
+            quant_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_compute_dtype=load_dtype,
+            )
+        elif self.quant == "8bit":
+            quant_config = BitsAndBytesConfig(
+                load_in_8bit=True,           
+                llm_int8_threshold=6.0,      
+                llm_int8_has_fp16_weight=False, 
+            )
+            raise IOError("8bit does not seem to work")
+        else:
+            quant_config = None
+
+        # Load processor
+        self.processor = VibeVoiceProcessor.from_pretrained(self.model_path, quantization_config=quant_config)
+
         # Load model
         try:
             if self.device == "mps":
                 self.model = VibeVoiceForConditionalGenerationInference.from_pretrained(
                     self.model_path,
                     torch_dtype=load_dtype,
+                    quantization_config=quant_config,
                     attn_implementation=attn_impl_primary,
                     device_map=None,
                 )
@@ -83,6 +107,7 @@ class VibeVoiceDemo:
                     self.model_path,
                     torch_dtype=load_dtype,
                     device_map="cuda",
+                    quantization_config=quant_config,
                     attn_implementation=attn_impl_primary,
                 )
             else:
@@ -90,6 +115,7 @@ class VibeVoiceDemo:
                     self.model_path,
                     torch_dtype=load_dtype,
                     device_map="cpu",
+                    quantization_config=quant_config,
                     attn_implementation=attn_impl_primary,
                 )
         except Exception as e:
@@ -101,6 +127,7 @@ class VibeVoiceDemo:
                 self.model = VibeVoiceForConditionalGenerationInference.from_pretrained(
                     self.model_path,
                     torch_dtype=load_dtype,
+                    quantization_config=quant_config,
                     device_map=(self.device if self.device in ("cuda", "cpu") else None),
                     attn_implementation=fallback_attn,
                 )
@@ -1195,6 +1222,14 @@ def parse_args():
         default=7860,
         help="Port to run the demo on",
     )
+
+    parser.add_argument(
+        "--quant",
+        type=str,
+        default="None",
+        help="Specify None for full precision or 4bit/8bit",
+    )
+    
     
     return parser.parse_args()
 
@@ -1211,7 +1246,8 @@ def main():
     demo_instance = VibeVoiceDemo(
         model_path=args.model_path,
         device=args.device,
-        inference_steps=args.inference_steps
+        inference_steps=args.inference_steps,
+        quant = args.quant
     )
     
     # Create interface
